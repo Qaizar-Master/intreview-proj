@@ -19,9 +19,15 @@ function resolveBaseUrl() {
 
 export const BASE_URL = resolveBaseUrl();
 
+/**
+ * 30 seconds, not 10. The deployed API runs on a free tier that sleeps when
+ * idle, and the first request after a sleep has to wait for it to wake — which
+ * can take the better part of a minute. A short timeout would report "server
+ * unreachable" for a server that is merely waking up.
+ */
 export const client = axios.create({
   baseURL: BASE_URL,
-  timeout: 10000, // fail fast instead of hanging for ever on a bad address
+  timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -37,11 +43,19 @@ export function toErrorMessage(error) {
     return `Request failed (HTTP ${status}).`;
   }
 
+  // Timed out waiting for a reply — most often a sleeping free-tier server.
+  if (error.code === 'ECONNABORTED') {
+    return (
+      'The server took too long to respond.\n\n' +
+      'It may be waking up after being idle. Please try again in a moment.'
+    );
+  }
+
   if (error.request) {
     return (
       `Cannot reach the server at ${BASE_URL}.\n\n` +
-      'Check that the backend is running and that your phone is on the same ' +
-      'WiFi network as your computer.'
+      'Check that the backend is running, and if you are running it locally, ' +
+      'that your phone is on the same WiFi network as your computer.'
     );
   }
 
