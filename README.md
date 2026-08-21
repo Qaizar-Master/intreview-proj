@@ -1,0 +1,285 @@
+# Practice Sessions
+
+A React Native mobile app with a Python (FastAPI) backend for managing
+communication practice sessions. Full CRUD, global state that keeps the list in
+sync without manual refresh, and a persisted light/dark theme.
+
+| | |
+|---|---|
+| **Mobile** | React Native (Expo SDK 54), React Navigation, Zustand, axios |
+| **Backend** | FastAPI, SQLAlchemy 2.0, Pydantic v2, Uvicorn |
+| **Database** | PostgreSQL 17 (Docker) |
+
+---
+
+## Features
+
+**Practice list (home)**
+- All sessions with title, description, duration, difficulty and status
+- Mark complete, edit, delete (with confirmation), pull-to-refresh
+- Counts summary, empty state, error banner with retry
+
+**Add / edit practice**
+- One screen for both, with Save and Cancel
+- Inline validation mirroring the server's rules
+- Loading state on save; stays open on failure so nothing typed is lost
+
+**Throughout**
+- The list updates immediately after every action — no manual refresh
+- Light/dark theme toggle, persisted across launches, seeded from the device
+- Distinct loading, empty and error states for every async operation
+
+---
+
+## Prerequisites
+
+| Requirement | Notes |
+|---|---|
+| Python 3.12+ | with `python3-venv` (`sudo apt install python3.12-venv` on Ubuntu) |
+| Node.js 18+ | for the Expo CLI |
+| Docker | runs PostgreSQL |
+| Expo Go on a phone | **must support Expo SDK 54** |
+
+Your phone and computer must be on the **same WiFi network**.
+
+---
+
+## Setup
+
+### 1. Database
+
+From the project root:
+
+```bash
+docker compose up -d
+```
+
+Settings live in `docker-compose.yml`. Port **5433** is deliberate, so it cannot
+collide with a PostgreSQL already running on the default 5432. Data is kept in a
+named volume, so it survives the container being recreated.
+
+```bash
+docker compose ps       # is it running and healthy?
+docker compose logs -f  # follow the logs
+docker compose down     # stop it (data kept)
+```
+
+### 2. Backend
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+```
+
+Now open `.env` and set the connection string. For the container created above:
+
+```
+DATABASE_URL=postgresql+psycopg://practice:practice@localhost:5433/practicedb
+```
+
+`.env.example` ships with the value blank so no credentials live in version
+control. The app **will not start** without a real value — deliberately, so a
+missing configuration fails at startup rather than silently connecting
+somewhere unexpected.
+
+Run it:
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+`--host 0.0.0.0` is required. The default binds to localhost only, and your
+phone would not be able to connect.
+
+Tables are created automatically on first start.
+
+Verify: **http://localhost:8000/docs**
+
+### 3. Mobile
+
+```bash
+cd mobile
+npm install
+npx expo start
+```
+
+Scan the QR code with Expo Go.
+
+> Install further packages with `npx expo install <package>`, never plain
+> `npm install` — it selects versions matching your Expo SDK, which matters for
+> packages containing native code.
+
+---
+
+## How the app finds the backend
+
+The phone cannot use `localhost` — that would mean the phone itself. Rather than
+hardcoding an IP address that changes with every network, `src/api/client.js`
+reads the host Expo is already serving the app from and reuses that machine on
+port 8000.
+
+Moving between WiFi networks therefore needs no code change.
+
+To point at a different server (a deployed one, for instance), set `apiUrl` in
+`mobile/app.json` and it takes precedence:
+
+```json
+{ "expo": { "extra": { "apiUrl": "https://api.example.com" } } }
+```
+
+---
+
+## Running order
+
+Start these in order — the backend connects to PostgreSQL at startup.
+
+| # | Service | Command | Port |
+|---|---|---|---|
+| 1 | Database | `docker compose up -d` | 5433 |
+| 2 | Backend | `uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload` | 8000 |
+| 3 | Mobile | `npx expo start` | 8081 |
+
+Keep 2 and 3 running in their own terminals — Python tracebacks appear in the
+first, JavaScript errors and `console.log` output in the second.
+
+---
+
+## API
+
+Five endpoints plus a health check:
+
+| Method | Endpoint | Success |
+|---|---|---|
+| `POST` | `/practices` | `201` |
+| `GET` | `/practices` | `200` |
+| `PUT` | `/practices/{id}` | `200` |
+| `PATCH` | `/practices/{id}/complete` | `200` |
+| `DELETE` | `/practices/{id}` | `204` |
+| `GET` | `/health` | `200` |
+
+**Full documentation with request payloads, sample responses and status codes:
+[`docs/API.md`](docs/API.md)**
+
+The machine-readable OpenAPI 3.1 schema is committed at
+[`docs/openapi.json`](docs/openapi.json) — import it into Postman or Insomnia to
+get every endpoint ready to call. Regenerate it after changing any endpoint:
+
+```bash
+cd backend && python export_openapi.py
+```
+
+Interactive docs are served by the running API at
+[`/docs`](http://localhost:8000/docs) (Swagger UI) and
+[`/redoc`](http://localhost:8000/redoc). Both are generated by FastAPI from the
+route definitions and Pydantic models, so they cannot drift from the code.
+
+Smoke-test every endpoint:
+
+```bash
+cd backend
+./test_api.sh                              # against localhost
+./test_api.sh http://192.168.1.15:8000     # against the LAN address
+```
+
+---
+
+## Project structure
+
+```
+backend/
+├── app/
+│   ├── main.py               app, CORS, startup, /health
+│   ├── config.py             settings from .env (required, no defaults)
+│   ├── database.py           engine, Session, get_db dependency
+│   ├── models.py             SQLAlchemy table definition
+│   ├── schemas.py            Pydantic request/response models
+│   ├── enums.py              Difficulty, Status
+│   └── routers/practices.py  the five endpoints
+├── requirements.txt
+├── export_openapi.py         regenerates docs/openapi.json
+└── test_api.sh
+
+mobile/
+├── App.js                    navigation stack, theme wiring
+└── src/
+    ├── api/
+    │   ├── client.js         axios instance, base-URL resolution, error text
+    │   └── practices.js      one function per endpoint
+    ├── store/
+    │   ├── usePracticeStore.js   practice data and actions
+    │   └── useThemeStore.js      theme mode, persistence, useTheme()
+    ├── screens/
+    │   ├── PracticeListScreen.js
+    │   └── PracticeFormScreen.js
+    ├── components/           Button, Badge, TextField, SegmentedField,
+    │                         PracticeCard, StateViews, ThemeToggle
+    └── constants/            theme tokens, shared enums
+
+docker-compose.yml            PostgreSQL service definition
+docs/API.md                   API reference
+docs/openapi.json             OpenAPI 3.1 schema (Postman/Insomnia import)
+```
+
+---
+
+## Design decisions
+
+**State updates without re-fetching.** Every mutating endpoint returns the
+affected object, so the Zustand store splices that object into its array —
+prepend on create, replace by id on edit and complete, filter on delete. One
+round trip per action, and the list is correct immediately. Re-fetching the
+whole collection after each write would be a second request and a visible
+flicker.
+
+**Validation on both sides.** Pydantic enforces the rules server-side; the form
+mirrors them for instant feedback. The server is the authority — a client can
+always be bypassed, so client-side validation is UX, not security.
+
+**Separate request and response schemas.** `id` and the timestamps exist only on
+`PracticeOut`, so no client can invent an id or forge a `created_at`.
+
+**Theme styles are functions, not constants.** `StyleSheet.create` runs once at
+import, so components build their styles through
+`useMemo(() => createStyles(theme), [theme])`. This is what allows a live theme
+switch, and it keeps every colour flowing from one token file.
+
+**Errors are classified, not generic.** `toErrorMessage` distinguishes "the
+server said no" from "the server never answered" from "the request was never
+sent", because the user's next action differs in each case.
+
+---
+
+## Troubleshooting
+
+| Symptom | Cause |
+|---|---|
+| "Cannot reach the server" in the app | Backend not running, or phone on a different WiFi network |
+| App will not load at all | Metro (8081) is down — separate from the API (8000) |
+| "Project is incompatible with this version of Expo Go" | Expo Go does not support SDK 54; update it from the Play Store |
+| Backend exits with `database_url Field required` | `.env` is missing — `cp .env.example .env` |
+| Backend starts, then errors on the connection string | `DATABASE_URL` in `.env` is blank — paste the value from [Setup](#2-backend) |
+| Backend cannot connect to the database | Container not started — `docker compose up -d` |
+| A new column is missing at runtime | `create_all` only creates tables, it never alters them; drop the table or add a migration |
+
+Work bottom-up when debugging — each step isolates one layer:
+
+```bash
+docker compose ps                            # 1. database
+curl http://localhost:8000/health            # 2. API
+curl http://<lan-ip>:8000/health             # 3. API from the network
+curl http://<lan-ip>:8081/status             # 4. Metro
+```
+
+---
+
+## Not implemented
+
+Out of scope for this assignment, and deliberate rather than overlooked:
+
+- **Authentication** — no users or sessions
+- **Database migrations** — `create_all` at startup; a production app would use Alembic
+- **Pagination** — `GET /practices` returns every row
+- **Automated tests** — verified with `test_api.sh` and manual testing

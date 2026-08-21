@@ -1,0 +1,30 @@
+# Starts the PostgreSQL database for this project.
+#
+#   docker compose up -d      start
+#   docker compose down       stop
+#
+# Port 5433 on the host (not the default 5432) so this cannot collide with
+# another PostgreSQL already running on your machine.
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: practice-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: practice
+      POSTGRES_PASSWORD: practice
+      POSTGRES_DB: practicedb
+    ports:
+      - '5433:5432'
+    volumes:
+      # A named volume keeps the data even if the container is recreated.
+      - practice-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U practice -d practicedb']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  practice-data:
