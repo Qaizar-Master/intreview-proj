@@ -8,7 +8,16 @@ sync without manual refresh, and a persisted light/dark theme.
 |---|---|
 | **Mobile** | React Native (Expo SDK 54), React Navigation, Zustand, axios |
 | **Backend** | FastAPI, SQLAlchemy 2.0, Pydantic v2, Uvicorn |
-| **Database** | PostgreSQL 17 (Docker) |
+| **Database** | PostgreSQL 17 (Docker locally, Render in production) |
+
+**Live API:** https://practice-api-5avg.onrender.com ·
+[Swagger UI](https://practice-api-5avg.onrender.com/docs) ·
+[ReDoc](https://practice-api-5avg.onrender.com/redoc)
+
+> Hosted on a free tier that sleeps when idle, so the first request after a
+> period of inactivity takes around 50 seconds to wake the service. Subsequent
+> requests are fast. The app raises its timeout to 30 seconds and shows a
+> "server is waking up" message rather than reporting a failure.
 
 ---
 
@@ -163,6 +172,9 @@ Five endpoints plus a health check:
 **Full documentation with request payloads, sample responses and status codes:
 [`docs/API.md`](docs/API.md)**
 
+The API is deployed at **https://practice-api-5avg.onrender.com** — the interactive docs there are public, so
+they can be shared with anyone: [https://practice-api-5avg.onrender.com/docs](https://practice-api-5avg.onrender.com/docs)
+
 The machine-readable OpenAPI 3.1 schema is committed at
 [`docs/openapi.json`](docs/openapi.json) — import it into Postman or Insomnia to
 get every endpoint ready to call. Regenerate it after changing any endpoint:
@@ -183,6 +195,37 @@ cd backend
 ./test_api.sh                              # against localhost
 ./test_api.sh http://192.168.1.15:8000     # against the LAN address
 ```
+
+---
+
+## Deployment
+
+The backend is deployed to Render from [`render.yaml`](render.yaml) in this
+repository — a blueprint that provisions both the web service and a PostgreSQL
+database, and injects `DATABASE_URL` into the service automatically, so no
+credential is ever committed.
+
+To deploy your own copy: Render dashboard → **New → Blueprint** → connect this
+repository.
+
+`app/config.py` normalises the connection string, because hosting providers hand
+out `postgres://` URLs while SQLAlchemy requires an explicit driver
+(`postgresql+psycopg://`).
+
+### Android APK
+
+The mobile app is built with EAS Build, which compiles in the cloud — no local
+Android SDK required:
+
+```bash
+cd mobile
+eas login
+eas build -p android --profile preview
+```
+
+The `preview` profile in [`eas.json`](mobile/eas.json) produces an installable
+APK. The build reads `extra.apiUrl` from `app.json`, so the APK talks to the
+deployed API above rather than a development machine.
 
 ---
 

@@ -1,6 +1,7 @@
 # API Documentation
 
-Base URL (local development): `http://localhost:8000`
+**Production:** `https://practice-api-5avg.onrender.com`
+Local development: `http://localhost:8000`
 From a phone on the same network: `http://<your-laptop-lan-ip>:8000`
 
 Interactive documentation is generated from the code and served by the running
@@ -8,9 +9,12 @@ API itself:
 
 | | |
 |---|---|
-| Swagger UI (try requests live) | http://localhost:8000/docs |
-| ReDoc (reference layout) | http://localhost:8000/redoc |
-| OpenAPI schema (JSON) | http://localhost:8000/openapi.json |
+| Swagger UI (try requests live) | [https://practice-api-5avg.onrender.com/docs](https://practice-api-5avg.onrender.com/docs) |
+| ReDoc (reference layout) | [https://practice-api-5avg.onrender.com/redoc](https://practice-api-5avg.onrender.com/redoc) |
+| OpenAPI schema (JSON) | [https://practice-api-5avg.onrender.com/openapi.json](https://practice-api-5avg.onrender.com/openapi.json) |
+
+Running locally, the same pages are at `http://localhost:8000/docs`,
+`/redoc` and `/openapi.json`.
 
 The same schema is committed to this repository as
 [`openapi.json`](openapi.json), so it can be read or imported into an API client

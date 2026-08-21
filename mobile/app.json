@@ -22,7 +22,11 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "apiUrl": ""
-    }
+      "apiUrl": "https://practice-api-5avg.onrender.com",
+      "eas": {
+        "projectId": "8df041f5-c067-4b9a-b958-e9273c93e4dd"
+      }
+    },
+    "owner": "qaizar21"
   }
 }
